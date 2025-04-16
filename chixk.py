@@ -1,23 +1,452 @@
+import os
+import sys
+import uuid
+import base64
+import random
+import requests
+import httpx
+from os import system as sm
+from sys import platform as pf
+from time import sleep as sp
+from urllib.parse import urlparse, parse_qs
+from rich import print as rp
+from rich.panel import Panel as pan
 
-import base64, marshal, zlib
+# Color Definitions
+R = "[bold red]"
+G = "[bold green]"
+Y = "[bold yellow]"
+B = "[bold blue]"
+M = "[bold magenta]"
+C = "[bold cyan]"
+W = "[bold white]"
 
-def multi_layer_decode(encoded_data):
-    # First, decode Base16
-    base64_encoded_data = base64.b16decode(encoded_data)
-    
-    # Decode Base64
-    compressed_data = base64.b64decode(base64_encoded_data)
-    
-    # Decompress using zlib
-    marshaled_data = zlib.decompress(compressed_data)
-    
-    # Unmarshal the data (deserialize)
-    original_code = marshal.loads(marshaled_data)
-    
-    return original_code
+TOKEN_FILE = os.path.join(os.getcwd(), "accesstoken.txt")
 
-# Encrypted data
-encrypted_code = '654A7A744F32755034305A7939316D2F6F6B30446C7251574A54346B5374714A34704E6D3536486265586C65752B7678514B444970735164697453533144785771344D504F4151496E43414835484335335A77765A7966426E593067502B4A2B7976774366386E33564457666F71535A5752385142446A4C3572445A5856566433563276727537394837372B6B352B596F37486A2B73536C72796255383730536C4F42526264305A6C5967443339344E2F50484E4563305A726A4D6972716B4E53596730646B33624A367048426B6C6265617A6131496F674476416A615053484C6C563130783545626365734968642B4458312F664A334C6663682B4F2F5539397334646B68624A6679374938706D344A6F7472565747557A7A315031386C4233576136546772713171474F432B756164617A6A637030306E424C415055335831594B363079567747645A794F6A57494F6836377A715671465971506377522B4872322B6F4466593866622B7763384C48506D59654C3562634C7A7967506F545579385569314446745172724C7A6F62683858574B6F44697A77384F397A6C47306E6476417472342B35436365425357353470736D6637327045394F446E666952706436486E544E5A684C4A46546773656F38726C594870447966397375614D4B6875763659564A7258574C7570644F356468784C4B2F537435782B5A61536164675847552F61766661355939756D3148314D326A57686B74754D5430325A644A567A686A386C437765412B7436654873374D507A736C3066665955455059416F63316D69656F666B485848396C554E61765352615850467052536D6E646B4C5A2B49537748354D706B472F73777773796D505A73796764463854354670684A6B4669666A677235613333414F324E716B326761727454796946592B626A5145736148496B6977715369302F6A7736345A5870742B6F57676D6C3572644F795444665979485275466E5359446A316B2B6E4D4849624B6F786D41335864647A484F4146546D6D59385254763349546D63324C48344547314974517579325430384F73346C4D7358415143754A593541626E424C4E30536E3873583354426D306C6A6D3364344E716F34667A6D624E7347415169307436774E48564F6A68625044456E6C654970736C30696D5270795679656C374D445278483777306476305436616C686756655967714D453359366C455269394C784E5252726F525339762B7A632B52777A376D4361626B6768674D4D756C536E774A357165546E6675514173307835502F454C2B396F74767948523276503930593238364937647676384F766A5A304E41764D3079356342643654364265427748546745506F764658444335334F6375544B48354A4575712B2B5368644649536F566C55645748466D6535716A674F61554B41672B46616F76706655395741466362526E6E43695878624C456C55685145734F53554B36786B685333536C416E632B65355150775963727A6D334B36717754416362376847757259506C68457179503452655535456F536657656E577539464467616B394A413573485138656D61325439344951455A5151464B4946593567574E63522B41492F6555444135444F553950796F4A67525A4D5643506A59556E32632F5155776D4A454159754A527436634F51447741787542326E64656D5A616D56576C6B6768576D45506975697462446F4D39702F61766F5652616A68314E644934656E323865354F4B654279437954544B5A4C546749484B4E4F526B526F35555133584E4247744448315245436463482F6C7469546965756859592B73672B654F62416E34374A6C586C4B306C666B596267694F43766F4132476B656838477A5965516670385930533576684D55774C785A6B49765770353748682B41586F725261526134547578447572493078684B6746304F784A5035685A3575616D41317A7649496B7A2B505555445577526B6A54746B44776461474254665071574E7A5862565639345A377A42584B6A7A347063766C535168584E656A467431786D4E65564D4F46486F6149774730575874353444715442564D62777951495A57716A6A536F55797A706C68667A454E7248516F35366D6A6D6E4B326C4C4C6F786B586F6E7065616862396957757A57536D4650615573636F4C497A42536173464352413930326263395878546E64486F43544130756273584F4C4D67484746475569583337706D485A685870627A6F695258613071393052547952576277544F594E5658744143324B74574C7854434E416C78374A32645856565A6C774F584858455044504D5967552B78734E58566D71614E4D38313768614C674337436763576C6467725874585641786667694841612B304B694B4E6244657A57597A78664363646E4C6469444D6969794A5448786E736E6467676256743348564D6E4C4C5135347953356F6F426D6752575571705636574B70424B6253586B6C4A70684C56314B4156316A556F54367337504D6B7742533758694F55592F6179534B69374A384377416B796F495152456E363246774A4B69456F2F416C427278384746704137343437617530636E6531764937765A4A2B396C4746307337577873566130425A35664536767470484A3066342F75783441312F37657873484F30484E383235376635646837523863374F50377448764B336B663765792F7766626A5233746E6457446F4E6F686A4E773945756634776334556F75723367466F724E47714E30374F566F6A7457717432564257545A346F686F764F496B77754554466E4E484C736E7137364B724E77687556636757334C47396561616F4878794C73556442664D674E71447837496F5348765067434253523668384B5446394D516D6D654433483761465932657149416953727736352F4F734153796A7A4D77364E487165356E79797A756E49334971784E2F364C696D66344E394C7968527670534231744261494F696A7971506C6A627746326A73427955636F3165586247795856585876564573724E457256356D4659734E36444D4376557346517A48514774342F3259636B4144335A576F71526F4B5661783434354E4776385744384139756F5A776D736343675A71457554587546476962387964582B4948636D4E617062554E613936665A303332634B4955724E61583244336D6B387378574E69354B66344F5675454D6763386A4351674259566C375467327A564C4E4566596D4C43455272517976766C53764755754355472F495572585A5849514F7A53545659595442414A2F76376D79447454774D47684A762F41425865342B5A7652517256375266415146774A72627652595565434472453065354E7A364F32336B4F754B2F6B466C3131695974374350334F654E424636622B51686858793455306F383737792F5733426455634F696177796346666D3452635430766951654E4930324B463435325967452B35434578625250544C6C4A365165357952393979342B2B3551472B4A524E685030776441385667556C6D5A443849582F63453271507544584145346A59474A4E6D38314D316B556C787255706536644F416E587765366845724B64496556526A6465472F45546C6A596C6C3865474F6862664D674873756B6E335939357943706566574C6C75634B4949736C7857684372735A52635A3158522B367A7369636A465930377A6E2B4A2B31654278654651556A56634F667A514A657A784D4C4F652F5156586E7A4F494E2B2F37626E48674A70657A316376457650352F385279536E4F574D3876426F76464D7031642B5443373846535958306C745859476F7533665365635734324D624579796B30486E79383978333541794D74693343693658596A4C417659424C696938622B696157495A77333870734355746A50475954744D545334474337397437715463503778482B5A6D617530443771566464546439695751552F7357505149496B33586E5161775873746B4B3330754350357A574A62624C39474B4B393856396B586C496A46497344524E4D3751377574327078717553486D4C506C4B524D59457531355771477268385A735470684E44425A396243522F533051435368682F2F77305270586F547770783546734D456A695349516D6F673833515933674B316572306D3345464F58456B75514D7A5367303771796C30457056554549387773525743363262794C6F72794B596F53354D475A4661734A4533554779756E4C556A4250385A636464697870573061797448486874425532354C73714B307167336C4655306C5655304539514D7A5A7253624E59624E556D7372364A5A5830557A51633351624E534565724D714B484A31466333474B706F4A616E592B52616C574661526D597A58523568307147304A786B69414A5050795275625143643153507A703079376454335570757441426671416C326474784E4C3148576C57336E4F483567444370486E45665659424E706C75594B616F476C4B517848357569417266465875562F6D47494648653646656C4271684255314D574E7667787155503153724E4D735074344B7365322B5856426B477069725634744E787653496C353369302B4D4533383070705178775973582F624733464C774453384553487745302F37527A634253676C45464937304535646E7A5636747A34314F4D3753314D56792B435059537A383774454B2B49376C5848683847434F45637769716251687958327849446148666C3245536859596936596F6947374B6F6167314271786C395764414E6C546170564A647056646167545A54564A67426F79376C4B7A644E786D474236317433734C6F645678327266744577664842644C4550586434387572566D73704D4152436650634A5733756C4C696831344665755356567049574630676A362B48667234664C4A3542327646516838524E7552534D396D385338324B4B4B7952716953774C62516F4E495272554A336D4776484134552F734164746F376B704362584F4E6A4354423869466B704E633374754F424E3669792F655A57427841567351724751716B57737879316779426D5A7A3649326571554349746C737544727A4A556A314D6A5557352B64476C75586733616E33643579506E326C31747376354E484165644535466532444E524C6E786C724E47336D766472487A3672577057702B3236362B62536E765876476B2F33646E745042752F4F6E323532457551426A782B61426F514F687571726B663931736E784A7439594D63674E42415A5652354B44312B5959396B3755674843575A75476A66624235393562324F622F5A346265506A772B414D6D7948476173376F4D62756B764745676F63674635534F6552576A7146586A33714832494D784C31705438736767774376417947324D4976366A65367A733669335146485752526B3479476F716D6170496C3158616E5646464350706B5931436377767547756A4C366979314F78724B756854587A53714775686254594753614A536E58433965524F3478643938796369564F31553064494645786A516261356E7131775666422F764E4E57616E786D71773351486C4673503677512B494745775974477656477453714C764154367A566631667050764B784A5954615776413675694C6A5371414B33545339696D3942694B476D674933322F4B757436583678513953555055414179434E335A656C3464494E3470343839784356745963394743366568663070686675536E444B716B746E65383464344F2F2B574E6C636E70704A45687959464931547048684B454F566F4870596A44626E773038645A4745336A79576151586B694F4E72504866436E6354525638362B70786D7262687244783155323348766A45483866444D515157334C56334136647963684763566C58675A6969462F64374956647267482B39335658485631646F4842634D37794D49794A356566507A396A3243642F6A4335435165776250434E7A64682B46597343614232312F5656515454593274365435397067672F704769393333646331774C784833774846752F74474962366A3278485654665642585961453775344E42655375515534737138634F764F37754B79517A31786675774B41757452464C425942706A5455344C7237614256494D5730794C4D7131313345476C372F68547348347A70713658706B3664543844522B43426872616E355A506252474A314F62775175714C577275686536633257665368387877465A45314D6437556A66734A313956784E7048655034483571623143432F6666502F5632362F6765516650312F686778652F682B524D57666776506638447A54566A35372F44384C6F646F62393541385733596A4E586649767933385077526E752B515146534A794F39494359752F784D38496B48574C482F3853397338772F7679483233646676336E7A4B416654556C784C5975414A537759566F445958396F676F2F7858782F3132616A613943766C6A7237384950664E3653634A6A6668595037412F6E2B3333373139376E624C3339372B2B746633503736432F6A372F542F2F4858443371792F72384F636634654F3732792F2B3466614C6634726262373938473348776D336830654745706C787234753341696C6B4F394332742B453037723136776C53596F677A4C2B474C483864506D77384B63702F69716D74676F77584C496238505A7543364F7474794D473363377A395A306768574C366F396F2B704A58715874507941656350462F6D2F412F756E3664766646506E2B3876352F63655954466A5335396F557156417273647632494C566B6F4D53676C734B664E5041493371784737482B4D58567976597756647546445256456F2F504B68736D662B4A496E436D53716D2B422B6D32336278546D526C534B5A33614E585A42746C754F4D365A4D7478644C497A305335796D4B6B4B706A4C7956384858426F73624D6C4B78365951476E4947774C7A537037417338436E732F5162504453676377336844306B454A6B476851374C2F345035333762524A316C3134625A66456C4A3036415156414D49586B6A324C646F79556F654A6238673053717A4E75474C362B75626A75666C4E356464536D58785738364263666E4A444D6A346A5A535159306A704C53792F6577637748683639346D534934544D696642787961526F547A515374755733566D793459306C31695950356E416D6E37536558513456384E54794562596A4B474B6B662F385775796679593231327471305077737675675633554F4F634A4E355739587A646D666A6C4B3966304B643774646164395A335932585A386C306E4437793238493172494C7630636E362B73625230636F4E35757A5A446B49746E58335474733733536659646A6962426E4D5974477831743644796559675131534A526C716B46337A466C764D33595664414D623459313859614663433178784B4237586E51647537766B6A44713872415762394A6F4D2B3830537163714E70744373796656697643534146313530426D4B70326461394D757A72514E6B7A7A706C6C5A3772366B67564B4F416F346A4F3744694956354D5574456143376975427161466958483769536254487150303366382F5867432F31643741682F7251556F553032325770362B2B3736692B7071352F4D7A47643863693665446B63474C723336757061752B7A6237633832446F39666E48543344335A336E7635736532767A7964476E7A3536766E33623246753549397049376B724B55456378566955723833586C374B7757514F63354B3364724B486D6378704C2F307768596A6F6766704D48465A322F76664E47426F45412F45423336544671796D75517A71515863534E4E663066424D327535585938325A764A4442694437703678694376656150504736344A74732B3634634D6266666B4478314B684B777845746A4572734B3636657067514F70552B78615447736C345A4C5241376F41422F3577466D6331394C5530614D78677030316D62306538474E5A4D76436A61366C65697764656B6774395759584674544E486F756D735344343630586A3750316C34377745484477505A4C31504F5A5A6F65424A6D6556434438566742387A776C4C76494B3042677633554C3668394545514F692F68356C32575044526D4E48327754387346564A483677563341657431735334707A57716A4963754B49475446646E3757662B697475756A7938734F7A51546A755A646B6768457A7671754E62704F647A364F6E5144554757423330706C35764C5A65397343364562447634785773465833514831577A464B4563494D3159332B4E5644756677456934786742'
+def randc():
+    return random.choice([R, G, Y, B, M, C])
 
-# Decode and execute
-exec(multi_layer_decode(encrypted_code))
+def logo():
+    rp(pan(f"""{randc()}
+  ______________________________
+ /  _____/\\_   _____/\\__    ___/
+/   \\  ___ |    __)_   |    |   
+\\    \\_\\  \\|        \\  |    |   
+ \\______  /_______  /  |____|   
+        \\/        \\/""", 
+    title=f"{Y}FACEBOOK AUTOMATION SUITE", 
+    subtitle=f"{R}DEVELOPED BY GABO",
+    border_style="bold purple"))
+
+def clear():
+    sm('cls' if pf in ['win32', 'win64'] else 'clear')
+    logo()
+
+########################################################################
+# Updated Token Getter Function with Correct Header for "User-Agent"
+def get_fb_token(email, password):
+    # Predefined access token for device-based login
+    base_access_token = '350685531728|62f8ce9f74b12f84c123cc23437a4a32'
+    
+    data = {
+        'adid': str(uuid.uuid4()),
+        'format': 'json',
+        'device_id': str(uuid.uuid4()),
+        'credentials_type': 'device_based_login_password',
+        'email': email,
+        'password': password,
+        'access_token': base_access_token,
+        'generate_session_cookies': '1',
+        'method': 'auth.login'
+    }
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    
+    try:
+        response = httpx.post("https://b-graph.facebook.com/auth/login", headers=headers, data=data, timeout=30)
+        if response.status_code == 200:
+            result = response.json()
+            if 'access_token' in result:
+                return result['access_token']
+            elif 'error' in result:
+                rp(f"{R}Error: {result['error']['message']}")
+        else:
+            rp(f"{R}Failed: HTTP code {response.status_code}")
+    except Exception as e:
+        rp(f"{R}Connection Error: {str(e)}")
+    
+    return None
+
+########################################################################
+# Other Automation Functions
+
+def extract_comment_id_from_url(url):
+    """Extracts the comment ID from a Facebook comment URL"""
+    try:
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        encoded_comment_id = query_params.get('comment_id', [None])[0]
+
+        if not encoded_comment_id:
+            raise ValueError("No comment_id found in the URL.")
+
+        decoded_str = base64.b64decode(encoded_comment_id).decode('utf-8')
+        return decoded_str.split("_")[-1]
+
+    except Exception as e:
+        rp(f"{R}Error extracting comment ID: {str(e)}")
+        return None
+
+def convert_post_link(url):
+    """Converts a Facebook post URL to the proper ID format"""
+    try:
+        parsed_url = urlparse(url)
+        path_parts = parsed_url.path.split('/')
+
+        if 'posts' in path_parts:
+            index = path_parts.index('posts')
+            return f"{path_parts[index-1]}_{path_parts[index+1]}"
+        elif 'story.php' in parsed_url.path:
+            story_id = parse_qs(parsed_url.query).get('story_fbid', [None])[0]
+            return f"{path_parts[1]}_{story_id}"
+        return parsed_url.path.split('/')[-1]
+
+    except Exception as e:
+        rp(f"{R}Error converting post URL: {str(e)}")
+        return None
+
+def react_to_comment(access_token, comment_id, reaction_type="LIKE"):
+    """Sends reaction to a Facebook comment"""
+    try:
+        url = f"https://graph.facebook.com/v19.0/{comment_id}/reactions"
+        params = {
+            "type": reaction_type,
+            "access_token": access_token
+        }
+        response = requests.post(url, params=params)
+        return response.json()
+    except Exception as e:
+        rp(f"{R}Error reacting to comment: {str(e)}")
+        return None
+
+def post_comment(access_token, post_id, message):
+    """Posts a comment on a Facebook post"""
+    try:
+        url = f"https://graph.facebook.com/v19.0/{post_id}/comments"
+        params = {
+            "message": message,
+            "access_token": access_token
+        }
+        response = requests.post(url, params=params)
+        return response.json()
+    except Exception as e:
+        rp(f"{R}Error posting comment: {str(e)}")
+        return None
+
+def follow_user(access_token, user_id):
+    """Subscribes to a Facebook user's updates"""
+    try:
+        url = f"https://graph.facebook.com/v19.0/{user_id}/subscribers"
+        params = {
+            "access_token": access_token
+        }
+        response = requests.post(url, params=params)
+        return response.json()
+    except Exception as e:
+        rp(f"{R}Error subscribing to user: {str(e)}")
+        return None
+
+def unfollow_user(access_token, user_id):
+    """Unsubscribes from a Facebook user's updates"""
+    try:
+        url = f"https://graph.facebook.com/v19.0/{user_id}/subscribers"
+        params = {
+            "access_token": access_token
+        }
+        response = requests.delete(url, params=params)
+        return response.json()
+    except Exception as e:
+        rp(f"{R}Error unsubscribing from user: {str(e)}")
+        return None
+
+def extract_user_id_from_url(url):
+    """Extracts the user ID from a Facebook profile URL"""
+    try:
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        user_id = query_params.get('id', [None])[0]
+
+        if not user_id:
+            raise ValueError("No user ID found in the URL.")
+
+        return user_id
+
+    except Exception as e:
+        rp(f"{R}Error extracting user ID: {str(e)}")
+        return None
+
+def share_post(access_token, post_id):
+    """Shares a Facebook post using the /me/feed endpoint."""
+    try:
+        url = f"https://graph.facebook.com/v19.0/me/feed"
+        params = {
+            "link": f"https://www.facebook.com/{post_id}",
+            "access_token": access_token
+        }
+        response = requests.post(url, params=params)
+        if response.status_code != 200:
+            rp(f"{R}Failed to share post: {response.json()}")
+        return response.json()
+    except Exception as e:
+        rp(f"{R}Error sharing post: {str(e)}")
+        return None
+
+########################################################################
+# User Interface Functions
+
+def main_menu():
+    clear()
+    rp(pan(f"""{Y}[1]{G} Token Getter (Email & Password)
+{Y}[2]{G} Auto Post Reaction
+{Y}[3]{G} Auto Comment Reaction
+{Y}[4]{G} Auto Post Comment
+{Y}[5]{G} Auto Follow User
+{Y}[6]{G} Auto Unfollow User
+{Y}[7]{G} Auto Share Post
+{Y}[8]{R} Exit""", 
+    border_style="bold purple"))
+    return input(f"{C}Choose option: {Y}")
+
+def read_access_token():
+    # Now uses the TOKEN_FILE in the current directory
+    try:
+        with open(TOKEN_FILE, 'r') as f:
+            return f.read().strip()
+    except Exception as e:
+        rp(f"{R}Error reading access token: {str(e)}")
+        return None
+
+def save_access_token(token):
+    try:
+        with open(TOKEN_FILE, 'w') as f:
+            f.write(token)
+    except Exception as e:
+        rp(f"{R}Error saving access token: {str(e)}")
+
+def token_getter_flow():
+    clear()
+    email = input(f"{C}Enter Facebook Email/ID: {Y}")
+    password = input(f"{C}Enter Password: {Y}")
+    token = get_fb_token(email, password)
+    clear()
+    if token:
+        # Save the token to file so other flows can access it
+        save_access_token(token)
+        rp(pan(f"{G}Token obtained successfully!", border_style="bold green"))
+        rp(f"{C}{token}")
+    else:
+        rp(pan(f"{R}Failed to obtain token!", border_style="bold red"))
+    input(f"{C}\nPress Enter to return to main menu...")
+
+def auto_post_reaction_flow():
+    clear()
+    token = read_access_token()
+    if not token:
+        rp(f"{R}No access token found. Please obtain one first (Option 1).")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    post_link = input(f"{C}Enter post URL: {Y}")
+    reaction_type = input(f"{C}Reaction type (LIKE/LOVE/HAHA/WOW/SAD/ANGRY): {Y}").upper()
+    count = int(input(f"{C}How many times do you want to react? {Y}"))
+
+    post_id = convert_post_link(post_link)
+    if not post_id:
+        rp(f"{R}Invalid post URL!")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    for _ in range(count):
+        try:
+            url = f"https://graph.facebook.com/v19.0/{post_id}/reactions"
+            params = {
+                "type": reaction_type,
+                "access_token": token
+            }
+            response = requests.post(url, params=params)
+            if response.status_code == 200:
+                rp(f"{G}Successfully reacted to post!")
+            else:
+                error = response.json().get('error', {}).get('message', 'Unknown error')
+                rp(f"{R}Failed: {error}")
+            sp(1)
+        except Exception as e:
+            rp(f"{R}Error: {str(e)}")
+    
+    input(f"{C}Press Enter to continue...")
+
+def auto_comment_reaction_flow():
+    clear()
+    token = read_access_token()
+    if not token:
+        rp(f"{R}No access token found. Please obtain one first (Option 1).")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    comment_link = input(f"{C}Enter comment URL: {Y}")
+    reaction_type = input(f"{C}Reaction type (LIKE/LOVE/HAHA/WOW/SAD/ANGRY): {Y}").upper()
+    count = int(input(f"{C}How many times do you want to react? {Y}"))
+
+    comment_id = extract_comment_id_from_url(comment_link)
+    if not comment_id:
+        rp(f"{R}Invalid comment URL!")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    for _ in range(count):
+        result = react_to_comment(token, comment_id, reaction_type)
+        if result and 'success' in result:
+            rp(f"{G}Successfully reacted to comment!")
+        else:
+            rp(f"{R}Failed to react to comment!")
+        sp(1)
+
+    input(f"{C}Press Enter to continue...")
+
+def auto_post_comment_flow():
+    clear()
+    token = read_access_token()
+    if not token:
+        rp(f"{R}No access token found. Please obtain one first (Option 1).")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    post_link = input(f"{C}Enter post URL: {Y}")
+    message = input(f"{C}Enter comment message: {Y}")
+    count = int(input(f"{C}How many times do you want to post this comment? {Y}"))
+
+    post_id = convert_post_link(post_link)
+    if not post_id:
+        rp(f"{R}Invalid post URL!")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    for _ in range(count):
+        result = post_comment(token, post_id, message)
+        if result and 'id' in result:
+            rp(f"{G}Successfully posted comment!")
+        else:
+            rp(f"{R}Failed to post comment!")
+        sp(1)
+
+    input(f"{C}Press Enter to continue...")
+
+def auto_follow_user_flow():
+    clear()
+    token = read_access_token()
+    if not token:
+        rp(f"{R}No access token found. Please obtain one first (Option 1).")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    profile_url = input(f"{C}Enter profile URL: {Y}")
+    user_id = extract_user_id_from_url(profile_url)
+    if not user_id:
+        rp(f"{R}Invalid profile URL!")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    count = int(input(f"{C}How many times do you want to subscribe to this user? {Y}"))
+
+    for _ in range(count):
+        result = follow_user(token, user_id)
+        if result and 'success' in result:
+            rp(f"{G}Successfully subscribed to user!")
+        else:
+            rp(f"{R}Failed to subscribe to user!")
+        sp(1)
+
+    input(f"{C}Press Enter to continue...")
+
+def auto_unfollow_user_flow():
+    clear()
+    token = read_access_token()
+    if not token:
+        rp(f"{R}No access token found. Please obtain one first (Option 1).")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    profile_url = input(f"{C}Enter profile URL: {Y}")
+    user_id = extract_user_id_from_url(profile_url)
+    if not user_id:
+        rp(f"{R}Invalid profile URL!")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    count = int(input(f"{C}How many times do you want to unsubscribe from this user? {Y}"))
+
+    for _ in range(count):
+        result = unfollow_user(token, user_id)
+        if result and 'success' in result:
+            rp(f"{G}Successfully unsubscribed from user!")
+        else:
+            rp(f"{R}Failed to unsubscribe from user!")
+        sp(1)
+
+    input(f"{C}Press Enter to continue...")
+
+def auto_share_post_flow():
+    clear()
+    token = read_access_token()
+    if not token:
+        rp(f"{R}No access token found. Please obtain one first (Option 1).")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    post_link = input(f"{C}Enter post URL: {Y}")
+    count = int(input(f"{C}How many times do you want to share this post? {Y}"))
+
+    post_id = convert_post_link(post_link)
+    if not post_id:
+        rp(f"{R}Invalid post URL!")
+        input(f"{C}Press Enter to return to main menu...")
+        return
+
+    for _ in range(count):
+        result = share_post(token, post_id)
+        if result and 'id' in result:
+            rp(f"{G}Successfully shared post!")
+        else:
+            rp(f"{R}Failed to share post!")
+        sp(1)
+
+    input(f"{C}Press Enter to continue...")
+
+########################################################################
+# Main Loop
+
+if __name__ == "__main__":
+    while True:
+        option = main_menu()
+        if option == '1':
+            token_getter_flow()
+        elif option == '2':
+            auto_post_reaction_flow()
+        elif option == '3':
+            auto_comment_reaction_flow()
+        elif option == '4':
+            auto_post_comment_flow()
+        elif option == '5':
+            auto_follow_user_flow()
+        elif option == '6':
+            auto_unfollow_user_flow()
+        elif option == '7':
+            auto_share_post_flow()
+        elif option == '8':
+            rp(f"{G}Exiting the program. Goodbye!")
+            break
+        else:
+            rp(f"{R}Invalid option! Please try again.")
